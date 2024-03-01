@@ -1,0 +1,833 @@
+---
+title: "Data analysis project"
+authors: Karol Kowal, Marcin Kamiński
+date: today
+date-format: 29 [January] 2024 
+format: 
+  html:
+    self-contained: true
+    echo: false
+    message: false 
+    warning: false
+toc: true
+editor: visual
+---
+
+```{r}
+# PACZKI
+library(ggplot2)
+library(flextable)
+library(dplyr)
+library(stringr)
+library(kableExtra)
+library(plotly)
+library(reshape2)
+library(tidyr)
+library(ggthemr)
+library(cluster)
+library(gridExtra)
+library(knitr)
+
+```
+
+```{r}
+# WCZYTANIE DANYCH
+dane <- read.csv("dane\\dane.csv")
+```
+
+```{r}
+knitr::include_graphics("figures\\Baner.png")
+```
+
+# Introduction
+
+The subject of the project is the analysis of selected statistics of football teams participating in the Premier League, which is the highest level of English football between 2017 and 2023.
+
+## Research Questions
+
+-   Is the term “Big Six” still relevant?
+
+-   What statistics define the best teams in the league?
+
+## Data
+
+We obtained the data for our analysis from the bref.com and espn.com websites. Since these sites do not offer the option to download ready-made datasets, we utilized web scraping methods learned during our studies. Below, you’ll find a portion of the complete dataset along with an explanation of the variables.
+
+```{r}
+#| column: page
+head(dane[-1], 10) %>% kable() %>% kable_material(c("striped", "hover"))
+ 
+kolorki <- define_palette(swatch = c("black", "#e0005e", "#00db74", "#37003c", "blue", "orange"), gradient = c("#e0005e", "#00db74"))
+ggthemr(kolorki)
+```
+
+::: {.callout-note collapse="true"}
+## Explanation of variables
+
+`Rk` - Rank in the table
+
+`Squad` - Team name
+
+`Matches.played` - Matches played
+
+`Wins` - Matches won
+
+`Draws` - Draws
+
+`Loses` - Matches lost
+
+`Goals.for` - Goals scored
+
+`Goals.against` - Goals conceded
+
+`Goal.difference` - Goal difference
+
+`Points` - Points
+
+`Points.per.match` - Average points scored per match
+
+`Expected.goals` - Expected goals scored according to Opta (does not include penalty kicks taken after extra time)
+
+`Expected.goals.allowed` - Expected goals conceded according to Opta (does not include penalty kicks taken after extra time)
+
+`Expected.goals.difference` - Expected goal difference according to Opta (does not include penalty kicks taken after extra time)
+
+`Expected.goals.per.90.minutes` - Average expected goal difference per 90 minutes according to Opta (does not include penalty kicks taken after extra time)
+
+`Attendance` - Average attendance at home matches
+
+`Season` - Season period in years.
+
+`Age` - Weighted average (in terms of minutes played) age of players in the team
+
+`Assists` - Number of assists
+
+`Passes.completed` - Number of accurate passes
+
+`Passes.attempted` - Total number of passes
+
+`Short.passes.completed`- Number of accurate short passes
+
+`Short.passes.attempted` - Total number of short passes
+
+`Medium.passes.completed` - Number of accurate medium passes
+
+`Medium.passes.attempted` - Total number of medium passes
+
+`Long.passes.completed` - Number of accurate long passes
+
+`Long.passes.attempted` - Total number of long passes
+
+`Progressive.passes` - Accurate passes that move the ball towards the opponent's goal at least 10 yards from its furthest point in the last 6 passes, or any accurate pass into the opponent's penalty area. Does not apply to passes from the defense (40% of the pitch from the own goal)
+
+`Live.ball.passes` - Live ball passes
+
+`Dead.ball.passes` - Dead ball passes (free kicks, corner kicks, kick-off, throw-in, and goal kick)
+
+`Passes.from.free.kicks` - Passes from free kicks
+
+`Through.balls` - Accurate passes between defenders to open space
+
+`Switches` - Passes that have traveled at least 40 yards across the pitch
+
+`Crosses` - Crosses
+
+`Throw.in.taken` - Throw-ins
+
+`Corner.kicks` - Corner kicks
+
+`Corner.kicks.in` - Corner kicks incoming
+
+`Corner.kicks.out` - Corner kicks outgoing
+
+`Corner.kicks.straight` - Short corner kick play
+
+`Passes.offside` - Offsides
+
+`Passes.blocked` - Blocked passes
+
+`Shoots.total` - Total number of shots
+
+`Shoots.on.target` - Number of shots on target
+
+`Average.shot.distance` - Average shot distance in yards (penalty kicks are not counted)
+
+`Free.kick.shots` - Shots from free kicks
+
+`Shot.creating.actions` - Two offensive actions leading to a shot, such as - passes, recoveries, and forced fouls. One player can perform many such actions. We can also consider the shooter as the creator of the action.
+
+`SCA.Live.ball.pass` - Accurate "live" passes that led to a shot
+
+`SCA.Dead.ball.pass` - Accurate passes after a set piece that led to a shot
+
+`SCA.Take.on` - Dribbles past an opponent led to a shot
+
+`SCA.Shot` - Shots that led to another shot
+
+`SCA.Fouls.drawn` - Provoked fouls that led to a shot
+
+`SCA.Defensive.action` - Defensive actions that led to a shot
+
+`Goal.creating.actions` - Two offensive actions leading to a goal, such as - passes, recoveries, and forced fouls. One player can perform many such actions. We can also consider the shooter as the creator of the action.
+
+`GCA.Live.ball.pass` - Accurate "live" passes that led to a goal
+
+`GCA.Dead.ball.pass` - Accurate passes after a set piece that led to a goal
+
+`GCA.Take.on` - Dribbles past an opponent that led to a goal
+
+`GCA.Shot` - Shots that led to another goal
+
+`GCA.Fouls.drawn` - Provoked fouls that led to a goal
+
+`GCA.Deffensive.action` - Defensive actions that led to a goal being scored
+
+`Penalty.kicks.attempted` - Total penalty kicks (to the opponent's goal)
+
+`Penalty.kicks.made` - Successful penalty kicks
+
+`Tackles` - Tackle attempts
+
+`Tackles.won` - Successful tackle attempts
+
+`Tackles.def.3rd` - Tackle attempts in the defensive third of the pitch
+
+`Tackles.mid.3rd` - Tackle attempts in the middle third of the pitch
+
+`Tackles.att.3rd` - Tackle attempts in the attacking third of the pitch
+
+`Dribblers.tackled` - Ball recoveries from dribbling
+
+`Dribblers.challenged` - Attempts to recover the ball from dribbling
+
+`Challenges.lost` - Unsuccessful attempts to recover the ball from dribbling
+
+`Blocks` - Blocked balls (player stood in the line of the ball's flight)
+
+`Shots.blocked` - Blocked shots
+
+`Blocked.passes` - Blocked passes
+
+`Interceptions` - Interceptions
+
+`Clearances` - Ball clearances
+
+`Errors` - Errors leading to a shot by the opponent
+
+`Ball.recoveries` - Recovered balls
+
+`Fouls.commited` - Committed fouls
+
+`Yellow.cards` - Yellow cards
+
+`Second.yellow.card` - Second yellow cards
+
+`Red.cards` - Red cards
+
+`Own.goals` - Own goals
+
+`Possession` - Ball possession (counted as a percentage of completed passes during the match)
+
+`Touches` - Number of times the ball is touched by the player (if the player received a pass, dribbled, and passed the ball further, it is counted as one touch)
+
+`Touches.def.pen` - Number of times the ball is touched in their own penalty area
+
+`Touches.def.3rd` - Number of times the ball is touched in the defensive third of the pitch
+
+`Touches.mid.3rd` - Number of times the ball is touched in the middle third of the pitch
+
+`Touches.att.3rd` - Number of times the ball is touched in the attacking third of the pitch
+
+`Touches.att.pen` - Number of times the ball is touched in the opponent's penalty area
+
+`Takes.on.attempted` - Attempts to dribble past an opponent
+
+`Takes.on.succesful` - Successful attempts to dribble past an opponent
+
+`Times.tackled.during.take.on` - Number of situations in which the opponent tried to recover the ball during dribbling
+
+`Carries` - Number of situations in which the player controlled the ball with his foot
+
+`Total.carrying.distance` - Distance in yards that the player traveled with the ball
+
+`Progressive.carrying.distance` - Distance in yards that the player traveled with the ball towards the opponent's goal
+
+`Progressive.carries` - Situations in which the player carried the ball towards the opponent's goal line at least 10 yards from its furthest point in the last 6 passes, or any carrying of the ball into the opponent's penalty area.
+
+`Carries.into.final.third` - Carrying the ball into the attacking third of the pitch
+
+`Carreis.into.penalty.area` - Carrying the ball into the penalty area
+
+`Miscontrols` - Unsuccessful attempts to control the ball
+
+`Dispossessed` - Loss of ball after recoveries by the opponent (recoveries after an attempt to dribble past a player are not counted)
+
+`Fouls.drawn` - Situations in which the player was fouled
+
+`Passes.recived` - Received passes
+
+`Progressive.passes.recived` - Received progressive passes
+
+`Aerials.won` - Won aerial duels
+
+`Aerial.lost` - Lost aerial duels
+
+`Substitute.apperances` - Number of substitutions made
+
+`Matchehs.as.unused.sub` - Matches without using all substitutions*
+:::
+
+All the data we obtained from the aforementioned websites was complete, so we don’t need to worry about filling in any missing information. Since our dataset is quite extensive, we decided to divide it into four parts: shots, passes, ball possession, and defense
+
+# Characteristics of the league
+
+For years, the term Big Six has been used in the jargon of fans and experts of English football, referring to the six best teams playing in the Premier League: Manchester United, Arsenal, Chelsea, Liverpool, Tottenham, and Manchester City.
+
+
+```{r}
+library(leaflet)
+leaflet() %>%
+  addTiles() %>%  # Add default OpenStreetMap map tiles
+  addMarkers(lng=-2.2912131, lat=53.4630716, popup="Old Trafford") %>% 
+  addMarkers(lng=-0.1108867, lat=51.5557331, popup="Emirates Stadium") %>% 
+  addMarkers(lng=-0.1935314, lat=51.4816663, popup="Stamford Bridge") %>% 
+  addMarkers(lng=-0.068798, lat=51.6042238, popup="Tottenham Hotspur Stadium")%>% 
+  addMarkers(lng=-2.9633923, lat=53.4308467, popup="Anfield") %>% 
+  addMarkers(lng=-2.2029676, lat=53.4831357, popup="Etihad Stadium")
+```
+
+On the map above, we have marked the stadiums of the teams that belong to the Big Six. Three teams are from London, two from Manchester, and one from Liverpool.
+
+### Basic charts/visualizations
+
+```{r}
+#| label: fig-Points
+#| fig-cap: Average number of points per season
+
+
+avg_possession <- dane %>% dplyr::group_by(Squad) %>% dplyr::summarise(AvgPoints = mean(Points), NumSeasons = dplyr::n_distinct(Season))
+
+avg_possession$Color <- ifelse(avg_possession$NumSeasons < 6, "#e0005e", "#00db74")
+
+ggplot(avg_possession, aes(x = reorder(Squad, -AvgPoints), y = AvgPoints, fill = Color)) +
+  geom_bar(stat = "identity", position = "dodge", fill = avg_possession$Color) +
+  labs(title = "Average points per season",
+       x = "Team name",
+       y = "Score")+
+       geom_hline(yintercept = mean(avg_possession$AvgPoints), linetype="dashed", color = "#37003c", size = 1)+
+       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+In the above chart ( @fig-Points), we see the average number of points from all seasons, with teams that have always played in the top tier marked in green. The dashed line represents the average number of points for all teams. We see that the Big Six always maintain a high level, while the rest of the league has fluctuations in form.
+
+```{r}
+#| label: fig-Points2
+#| fig-cap: Pie chart
+
+
+krajtam <- dane %>% group_by(Squad) %>% summarise(Punkty = sum(Points)) %>% arrange(desc(Punkty)) %>%
+  mutate(Big6 = ifelse(Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"), "Big six", "Others")) %>% group_by(Big6) %>% summarise(Punkty = sum(Punkty))
+
+
+ggplot(krajtam, aes(x="", y=Punkty, fill=Big6)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0)+
+  scale_fill_manual(values = c("#00db74","#37003c"))+
+  theme_void()
+
+```
+
+In the pie chart (@fig-Points2), we see that the Big Six has scored over one-third of all possible points to be gained over the last 5 years. It’s worth noting that there are over twice as many other teams in each season, as many as 14.
+
+```{r}
+#| label: fig-Possession
+#| fig-cap: Average ball possession
+
+
+avg_possession <- dane %>% dplyr::group_by(Squad) %>% dplyr::summarise(AvgPossession = mean(Possession), NumSeasons = dplyr::n_distinct(Season))
+
+avg_possession$Color <- ifelse(avg_possession$NumSeasons < 6, "#e0005e", "#00db74")
+
+ggplot(avg_possession, aes(x = reorder(Squad, -AvgPossession), y = AvgPossession, fill = Color)) +
+  geom_bar(stat = "identity", position = "dodge", fill = avg_possession$Color) +
+  labs(title = "Average ball possession from all seasons",
+       x = "Team",
+       y = "Average Possession(%)")+
+       geom_hline(yintercept = mean(avg_possession$AvgPossession), linetype="dashed", color = "#37003c", size = 1)+
+       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+In the above chart (@fig-Possession), we see the average ball possession of each team from all seasons, with teams that have always played in the top tier marked in green. The dashed line represents the average of all teams. We see that the best teams keep the ball longer during the match, but this is not a rule.
+
+```{r}
+avg_rank <- dane %>% group_by(Squad) %>% summarise(AvgRank = median(Rk), AvgGoals = round(mean(Goals.for),1), AvgEg = round(mean(Expected.goals),1))
+
+selected_teams1 <- avg_rank %>% filter(AvgRank < 8)
+
+
+plot1 <- ggplot(selected_teams1, aes(x = Squad))+
+  geom_bar(stat = "identity", aes(y=AvgGoals, fill="Goals"))+
+  geom_bar(stat = "identity", aes(y=AvgEg, fill="Expected goals", width=0.5))+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 20),
+        axis.title = element_text(size = 20),
+        axis.text.y = element_text(size = 20),
+        legend.position = "None")
+
+
+```
+
+```{r}
+#| layout-nrow: 1
+#| column: page
+#| label: fig-ex2
+#| fig-cap: 
+#| - "Expected Goals"
+#| - "Expected Goals"
+#| fig-cap-location: bottom
+#| fig-width: 20
+#| fig-height: 10
+
+
+avg_rank <- dane %>% group_by(Squad) %>% summarise(AvgRank = median(Rk), AvgGoals = round(mean(Goals.for),1), AvgEg = round(mean(Expected.goals),1))
+
+selected_teams <- avg_rank %>% filter(AvgRank > 15)
+
+plot2 <- ggplot(selected_teams, aes(x = Squad))+
+  geom_bar(stat = "identity", aes(y=AvgGoals, fill="Goals"))+
+  geom_bar(stat = "identity", aes(y=AvgEg, fill="Expected goals", width=0.5))+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 20),
+        axis.title = element_text(size = 20),
+        axis.text.y = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text = element_text(size = 20))
+
+grid.arrange(plot1, plot2, ncol=2)
+
+```
+
+In @fig-ex2, we compared Expected Goals to actual goals scored. On the left, we presented teams from the Big Six, and on the right, teams that have at least once dropped from the league. We see that teams from the Big Six score more goals than they create favorable situations, i.e., players score goals even in difficult situations. Teams from the second chart have the opposite situation - more expected goals than actually scored. This means that the players of these teams waste even favorable situations. This may indicate the level of players, due to which these clubs are not able to stay in the league.
+
+```{r}
+#| label: fig-age
+#| fig-cap: Age
+
+
+filtr <- dane[dane$Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"),]
+boxplot(filtr$Age ~ filtr$Squad, main = "Player age chart", xlab = "Drużyna", ylab = "Age", las = 2, col=c("#00db74")) 
+```
+
+In the box plot @fig-age, we see the average age of Big Six team players over the last 6 years. Arsenal boasts the youngest squad, while Manchester City, which relies on experience, has the oldest. In addition, we can infer that Manchester City and Tottenham mostly rely on the same players as their chart is the “least stretched”. On the other hand, a lot of different players have passed through Arsenal as the data from the last 5 years are the most divergent.
+
+```{r}
+#| label: fig-contacts
+#| fig-cap: Konatkty z piłką w różnych częściach boiska
+
+dotkniecia <-  dane  %>% group_by(Squad) %>% dplyr::select(Squad, Touches.def.3rd, Touches.mid.3rd, Touches.att.3rd) %>% summarise( Touches.def.3rd = sum(Touches.def.3rd), Touches.mid.3rd = sum(Touches.mid.3rd), Touches.att.3rd = sum(Touches.att.3rd)) %>% filter(Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"))
+
+
+df_long <-  reshape2::melt(dotkniecia, id.vars = "Squad")
+
+
+plt1 <- ggplot(df_long, aes(x = variable, y = value, color = Squad)) +
+  geom_point(position = position_dodge(width = 0.8), size = 3) +
+    scale_color_manual(values = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"))+
+  labs(title = "",
+       x = "Category",
+       y = "Touches") +
+  theme_minimal()+
+  theme(legend.position = "bottom")
+
+plt2 <- ggplot(df_long, aes(x = variable, y = value, group = Squad, color = Squad)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"))+
+  labs(title = "",
+       x = "Category",
+       y = "Touches",
+       color = "Squad") +
+  theme_minimal()+
+   theme(legend.position = "bottom")
+
+grid.arrange(plt1, plt2, ncol=2)
+```
+
+In the above chart @fig-contacts, we presented touches of the ball by players from the Big Six in different parts of the pitch. The pitch was divided into three parts: around their own penalty area, the middle of the pitch, and around the opponent’s penalty area. We see that each of the best teams has the most contact with the ball in the middle of the pitch - that’s where the actions are built. We can observe that in the case of the best team, Manchester City, the difference between contacts under the opponent’s penalty area is definitely greater than around their own penalty area. Tottenham is completely the opposite, and the remaining teams have a similar amount both under one and the other goal.
+
+```{r}
+#| label: fig-interceptions
+#| fig-cap: Ball interceptions in different parts of the field
+
+
+odbiory <-  dane  %>% group_by(Squad) %>% dplyr::select(Squad, Tackles.def.3rd, Tackles.mid.3rd, Tackles.att.3rd) %>% summarise(Tackles.def.3rd = sum(Tackles.def.3rd), Tackles.mid.3rd = sum(Tackles.mid.3rd), Tackles.att.3rd = sum(Tackles.att.3rd)) %>% filter(Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"))
+
+df_long1 <-  reshape2::melt(odbiory, id.vars = "Squad")
+
+plt3 <- ggplot(df_long1, aes(x = variable, y = value, color = Squad)) +
+  geom_point(position = position_dodge(width = 0.8), size = 3) +
+    scale_color_manual(values = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"))+
+  labs(title = "",
+       x = "Category",
+       y = "Touches") +
+  theme_minimal()+
+  theme(legend.position = "bottom")
+
+plt4 <- ggplot(df_long1, aes(x = variable, y = value, group = Squad, color = Squad)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"))+
+  labs(title = "",
+       x = "Category",
+       y = "Touches",
+       color = "Squad") +
+  theme_minimal()+
+   theme(legend.position = "bottom")
+
+grid.arrange(plt3, plt4, ncol=2)
+```
+
+In the interceptions chart @fig-interceptions, we observe that Liverpool intercepts significantly more balls in the middle of the pitch, thus not allowing opponents under their penalty area. Manchester City is similar, but not as effective in the middle as Liverpool. This means that these two teams play high pressing and have the best results thanks to this, among other things. The rest of the teams from the big six allow opponents on their half and thus intercept the ball.
+
+# Principal Component Analysis
+
+In our analysis, we focused solely on variables representing the behavior of footballers on the pitch. This choice was dictated by the desire to understand the key strategies, tactics, and styles of play that characterize different teams. We believe that these variables can provide valuable information about the dynamics of the game and help identify factors that contribute to the success of teams in the Premier League.
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+dane_d1 <- dane %>% dplyr::select(-Matches.played, -Wins, -Draws, -Loses, -Goals.for, -Goals.against, -Goal.difference, -Rk, -Points.per.match, -Expected.goals, -Expected.goals, -Expected.goals.allowed, -Expected.goals.difference, -Expected.goals.difference.per.90.minutes, -Assists, -Season, -Attendance) %>% group_by(Squad) %>% summarise_all(~mean(.)) %>% as.data.frame()
+
+ 
+row.names(dane_d1) <- dane_d1$Squad
+do_lm <- dane_d1$Points
+dane_d1 <- dane_d1 %>% dplyr::select(-Squad, -Points) %>% scale() %>% as.data.frame()
+ 
+model_pca <- PCA(X=dane_d1, scale.unit = F, ncp=91, graph = F)
+ 
+dane_b6 <- dane_d1 %>%
+  mutate(Big6 = ifelse(row.names(dane_d1) %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"), "Big six", "Reszta"))
+dane_b6$Big6 <- as.factor(dane_b6$Big6)
+ 
+head(round(model_pca$eig[,2:3],2),8) %>% as.data.frame() %>% kable() %>% kable_material(c("striped", "hover"))
+ 
+
+
+```
+
+Based on the principal component analysis (PCA) conducted on our data, it can be noticed that the first principal component (Dim.1) explains 47% of the total variance. This suggests that Dim.1 has the greatest impact on the model.
+
+```{r}
+#| column: page
+
+pca_ind <- model_pca$ind %>% as.data.frame()
+pca_ind[,1:6] %>% round(2) %>% arrange(desc(coord.Dim.1))%>% head(8) %>% kable() %>% kable_material(c("striped", "hover"))
+```
+
+If we sort the teams according to how they are explained by the first dimension, we can notice an interesting dependency - namely, the first six teams are the aforementioned Big Six, additionally, in the first place, we see Manchester City which has dominated English football in recent years. We can treat this as a kind of ranking.
+
+```{r}
+
+fviz_pca_ind(model_pca, label="none", habillage = as.factor(dane_b6$Big6),
+             addEllipses = TRUE, ellipse.level=0.95,
+             palette = c("#00db74", "#37003c"))
+```
+
+This is how the first two dimensions look on the PCA plane. We can already notice here that the first dimension has divided the teams into the Big Six and the rest.
+
+Let’s now look at what individual variables have an impact on the first - the most important dimension, this will help us understand what elements of the game distinguish better teams from the worse ones.
+
+### Passes
+
+```{r}
+pca_var <- model_pca$var %>% as.data.frame()# %>% arrange(desc(abs(coord.Dim.1)))
+ 
+# podania
+pca_var_pass <- pca_var[c(4,6,8,14,15),1:2][1] %>%  kable() %>% kable_material(c("striped", "hover"))
+
+pca_var_pass
+```
+
+The correlation analysis between Dim.1 and various types of passes shows that the best teams make a large number of short and medium passes, which have a strong positive correlation with Dim.1. On the other hand, these teams show a negative correlation with long passes, suggesting that this type of pass is more often used by weaker teams.
+
+### Defensive play
+
+```{r}
+pca_var_def <- pca_var[c(46:48, 52, 59),1:2][1] %>% kable() %>% kable_material(c("striped", "hover"))
+ 
+pca_var_def
+
+```
+
+In terms of defensive strategies, the best teams often take the ball on the opponent’s half, while other teams often defend on their own half, block shots, and resort to fouls. All teams show a similar frequency of ball recovery in the middle of the pitch.
+
+### Corner kicks
+
+```{r}
+# rzuty rożne
+pca_var_corner <- pca_var[18:20,1:2][1] %>% kable() %>% kable_material(c("striped", "hover"))
+pca_var_corner
+```
+
+Interestingly, the best teams play their corner kicks most often in a way that moves away from the goal, i.e., on the right side, the corner kick is taken by a right-footed player and on the left by a left-footed player. They rather avoid short plays and crosses reaching the goal.
+
+### Touches
+
+```{r}
+# gra z piłką przy nodze
+pca_var_touch <- pca_var[67:71,1:2][1] %>% kable() %>% kable_material(c("striped", "hover"))
+pca_var_touch
+```
+
+Players of the best teams have the most contact with the ball in the middle part and on the opponent’s half. It can be seen that opponents are often locked in their penalty area, the best teams have a high correlation with contacts in the opponent’s penalty area, and a negative one in their own. In their own penalty area, weaker teams have a lot of contacts because they have to recover and clear the ball to avoid losing a goal.
+
+# Cluster Analysis
+
+```{r}
+dane_ak2 <- dane %>% dplyr::select(Squad, Possession, Carries, Touches,
+                                Short.passes.attempted, Medium.passes.attempted, Long.passes.attempted, Switches, Crosses,
+                                Tackles.def.3rd, Tackles.mid.3rd, Tackles.att.3rd, Cleansheets,
+                                Corner.kicks.in, Corner.kicks.out, Corner.kicks.straight,
+                                Touches.def.pen, Touches.def.3rd, Touches.mid.3rd, Touches.att.3rd, Touches.att.pen, Interceptions) %>% group_by(Squad) %>% summarise_all(~mean(.)) %>% as.data.frame()
+rownames(dane_ak2) <- dane_ak2$Squad
+dane_ak2 <- dane_ak2 %>% dplyr::select(-Squad) %>% scale() %>% as.data.frame()
+```
+
+Podczas analizy modelu PCA mogliśmy zauważyć już pewne różnice pomiędzy wielką szóstką a resztą zestawienia. Przyjrzyjmy się teraz temu dokładniej.
+
+### Hopkins statistic
+
+First, we need to check if our set has a tendency to cluster, to investigate this we will use the Hopkins statistic.
+
+```{r}
+library(clustertend)
+hopkins(dane_ak2, n = nrow(dane_ak2)-1)
+```
+
+The obtained value of the statistic is less than 0.5 we can assume that the set has a tendency to cluster
+
+## Non-hierarchical approach
+
+### Selecting the right number of clusters
+
+To determine the appropriate number of clusters, we will need a distance matrix created from our data. All variables in our set are quantitative so we will use the Euclidean method to determine this matrix.
+
+```{r}
+library(NbClust)
+set.seed(123)
+d2 <- get_dist(dane_ak2)
+fviz_dist(d2)
+```
+
+On the heatmap created based on the distance matrix, we can notice two clusters:
+
+-   One smaller containing 6 teams from the previously mentioned “Big Six”
+
+-   The other larger containing the rest of the league teams
+
+Let’s now see what other ways of estimating the best number of clusters have to say about this
+
+```{r}
+#fviz_nbclust(dane_ak2, FUNcluster = hcut, method = "wss", k.max = 10)
+#fviz_nbclust(dane_ak2, FUNcluster = hcut, method = "silhouette", k.max = 10)
+#fviz_nbclust(dane_ak2, FUNcluster = hcut, method = "gap_stat", k.max = 10)
+
+res.nb <- NbClust(dane_ak2, distance = "euclidean",
+                  min.nc = 2, max.nc = 10,
+                  method = "ward.D2", index = "kl")
+
+df <- as.data.frame(res.nb$Best.nc[1])
+rownames(df) <- "kl"
+
+for (i in c("ch", "hartigan", "cindex", "db", "silhouette", "duda", "pseudot2", "beale", "ratkowsky", "ball", "ptbiserial", "gap", "frey", "mcclain", "gamma", "gplus", "tau", "dunn", "sdbw")) {
+  res.nb <- NbClust(dane_ak2, distance = "euclidean",
+                  min.nc = 2, max.nc = 10,
+                  method = "ward.D2", index = i)
+  df2 <- as.data.frame(res.nb$Best.nc[1])
+  rownames(df2) <- i
+  df <- rbind(df, df2)
+}
+
+colnames(df) <- "The optimal number of clusters"
+df %>% kable() %>% kable_material(c("striped", "hover"))
+```
+
+Most methods also suggest dividing the set into two groups which we will also do in further analysis.
+
+To divide our set we decided to use the k-means method.
+
+```{r}
+mod.km <- kmeans(dane_ak2, centers = 2, nstart = 25)
+fviz_cluster(mod.km, data = dane_ak2) # metoda k-srednich
+```
+
+## Hierarchical approach
+
+The best way to visualize the hierarchical division of the set is a dendrogram. To build ours we decided to use the complete linkage method.
+
+```{r}
+mod.hc <- hcut(dane_ak2, k = 2, stand = TRUE, hc_method = "complete")
+fviz_dend(mod.hc, rect = TRUE, cex = 0.5, k_colors =  c("#00db74","#37003c"))
+```
+
+As we can see, the dendrogram also distinguished two groups the same as in the non-hierarchical approach.
+
+# Discriminant analysis
+
+```{r}
+library(tidyverse)
+library(candisc)
+library(MASS)
+
+dane_dysk <- dane %>% dplyr::select(Squad, Possession, Carries, Touches,
+                                Short.passes.attempted, Medium.passes.attempted, Long.passes.attempted, Switches, Crosses,
+                                Tackles.def.3rd, Tackles.mid.3rd, Tackles.att.3rd, Cleansheets,
+                                Corner.kicks.in, Corner.kicks.out, Corner.kicks.straight,
+                                Touches.def.pen, Touches.def.3rd, Touches.mid.3rd, Touches.att.3rd, Touches.att.pen, Interceptions) %>%
+  mutate(Big6 = ifelse(Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"), "yes", "no")) %>%
+  #dplyr::select(-Squad) %>% 
+  mutate_if(is.numeric, scale) %>% as.data.frame()
+
+dane_dysk <- dane_dysk %>% mutate(Big6 = ifelse(Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"), "yes", "no")) %>% dplyr::select(-Squad)
+dane_dysk$Big6 <- as.factor(dane_dysk$Big6)
+```
+
+To see if the term big six is still current we will create a discriminant analysis model and then make a prediction on the data set from the currently ongoing season. To create the model we will use variables created using the PCA model
+
+### Assumptions
+
+#### No collinearity
+
+One of the main assumptions of building a discriminant function model is the lack of strong correlation between variables, to detect and get rid of them we used the `vif` function. Let’s see what variables we have left and what their correlations look like now.
+
+```{r}
+#| column: page
+#| fig-width: 40
+#| fig-height: 30
+df <- dane_dysk %>% dplyr::select(-Big6)
+
+do_spr <- df %>% dplyr::select(colnames(df[faraway::vif(df)<5]))
+
+library(GGally)
+
+
+ggpairs(dane[colnames(do_spr)])+
+  theme(strip.text.x = element_text(size = 30),
+        strip.text.y = element_text(size = 30))
+```
+
+#### Sample size and equality of groups
+
+It is assumed that in discriminant analysis models there were at least 4-5 times more observations than variables used in the model, it is also recommended that all groups in the discriminant analysis were equal in our case in each season Big six is only 30% of all teams in the table which creates quite a large disproportion. So we will randomly get rid of a few observations of teams outside this group to maintain balance.
+
+```{r}
+#| layout-nrow: 1
+#| column: page
+#| label: fig-licz
+#| fig-cap: 
+#| - "Before alignment"
+#| - "After alignment"
+#| fig-cap-location: bottom
+#| fig-width: 20
+#| fig-height: 20
+
+# Ustalamy ziarno losowości dla powtarzalności wyników
+set.seed(123)
+not_big_six <- do_spr %>% mutate(Big6 = dane_dysk$Big6) %>% filter(Big6=="no")
+big_six <- do_spr %>% mutate(Big6 = dane_dysk$Big6) %>% filter(Big6=="yes")
+
+indeksy <- sample(nrow(not_big_six), 48)
+
+not_big_six_50 <- not_big_six[-indeksy,]
+
+nowe_dane <- rbind(big_six, not_big_six_50)
+
+dane_dysk %>% ggplot(aes(x=Big6, fill=Big6))+geom_bar()+
+  theme(axis.text.x = element_text(hjust = 1, size = 30),
+        axis.title = element_text(size = 30),
+        axis.text.y = element_text(size = 30),
+        legend.position = "None")
+
+nowe_dane %>% ggplot(aes(x=Big6, fill=Big6))+geom_bar()+
+  theme(axis.text.x = element_text(hjust = 1, size = 30),
+        axis.title = element_text(size = 30),
+        axis.text.y = element_text(size = 30),
+        legend.title = element_text(size = 30),
+        legend.text = element_text(size = 30))
+```
+
+Now in our set there are 72 teams left which is still enough.
+
+#### Normal distribution
+
+```{r}
+library(rstatix)
+x <- rstatix::mshapiro_test(nowe_dane[-11]) %>% as.data.frame() %>% mutate(method = "multivariate Shapiro-Wilk normality test", p.value = as.character(p.value)) 
+x[c(3,2)] %>% kable() %>% kable_material(c("striped", "hover"))
+```
+
+Based on the Shapiro-Wilk test, we also reject the hypothesis of multidimensional normality. However, many analysts skip testing this assumption, so we won’t worry about it. Let’s go on!
+
+#### Equality of covariance matrix
+
+```{r}
+box_m(nowe_dane[-11], nowe_dane$Big6)[c(4,2)] %>% as.data.frame() %>% kable %>% kable_material(c("striped", "hover"))
+```
+
+We also reject the hypothesis of equality of covariance matrices, but thanks to the fact that both groups are equal in number we can turn a blind eye to this ;)
+
+### Building a predictive model
+
+One of our main goals of the analysis was to check if the term Big Six is still current. To train the discriminant analysis model we will use the entire data set and then test it on the data from the current season (as of January 28, 2024). It’s worth noting that we are only halfway through the season and despite standardizing the variables the results may not be adequate.
+
+### Model verification
+
+```{r}
+dane2 <- read.csv("dane\\dane2.csv")
+rownames(dane2) <- dane2$Squad
+dane2 <- dane2 %>% dplyr::select(colnames(df[faraway::vif(df)<5])) %>% scale() %>% as.data.frame()
+
+dane_testowe <- dane2 %>% dplyr::select(colnames(df[faraway::vif(df)<5])) %>% scale() %>% as.data.frame() %>% mutate(Big6 = as.factor(ifelse(rownames(dane2) %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"), "yes", "no")))
+
+dane_treningowe <- dane %>% dplyr::select(colnames(df[faraway::vif(df)<5]) )%>% scale() %>% as.data.frame() %>%
+  mutate(Big6 = as.factor(ifelse(dane$Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"), "yes", "no")))
+
+
+model_lda <- lda(Big6~., data = dane_treningowe)
+pred <- predict(model_lda, newdata = dane_testowe)
+
+tabela <- table(pred = pred$class, obs = dane_testowe$Big6)
+#tabela
+prop <- prop.table(tabela)
+```
+
+```{r}
+ggplot(as.data.frame(tabela), aes(x=obs, y=pred)) +
+  geom_tile(aes(fill = Freq), colour = "white") +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1) +
+  scale_fill_gradient(low = "white", high = "#00db74") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+**Measures of confusion matrix**
+
+-   Accuracy = `r 15/20*100`%
+-   Error rate = `r (1-(15/20))*100`%
+-   Sensitivity = `r (3/6)*100`%
+-   Specificity = `r round((12/14)*100,2)`%
+
+We see that overall our model did not do too badly with classification as it was right in 75%, but we were most interested in ‘finding’ teams from Big Six this task was half successful. Let’s now see which teams have been classified into this group.
+
+```{r}
+dane2 <- read.csv("dane\\dane2.csv")
+wyniki <- data.frame(Team=dane2$Squad, Prediction = pred$class)
+wyniki %>% kable %>% kable_material(c("striped", "hover")) %>% row_spec(c(1,2,6,8,10), background = "#00db74")
+```
+
+# Summary
+
+-   The style of play that distinguishes the best teams can be summarized as short passes mainly on the opponent’s half, high pressing i.e. taking the ball still on the opponent’s half, not waiting for the development of the action. Better teams also stand out in terms of performing set pieces.
+
+-   You can clearly observe the distinctness of Big Six against the rest of the line-up, but we can suspect that over time this difference is blurring looking at the results of these teams in the current season and our predictive model.
+
+
