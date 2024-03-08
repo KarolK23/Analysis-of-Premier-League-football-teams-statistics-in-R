@@ -274,7 +274,7 @@ ggthemr(kolorki)
 
 `Substitute.apperances` - Number of substitutions made
 
-`Matchehs.as.unused.sub` - Matches without using all substitutions*
+`Matchehs.as.unused.sub` - Matches without using all substitutions\*
 :::
 
 All the data we obtained from the aforementioned websites was complete, so we don’t need to worry about filling in any missing information. Since our dataset is quite extensive, we decided to divide it into four parts: shots, passes, ball possession, and defense
@@ -282,7 +282,6 @@ All the data we obtained from the aforementioned websites was complete, so we do
 # Characteristics of the league
 
 For years, the term Big Six has been used in the jargon of fans and experts of English football, referring to the six best teams playing in the Premier League: Manchester United, Arsenal, Chelsea, Liverpool, Tottenham, and Manchester City.
-
 
 ```{r}
 library(leaflet)
@@ -413,14 +412,14 @@ In @fig-ex2, we compared Expected Goals to actual goals scored. On the left, we 
 
 
 filtr <- dane[dane$Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"),]
-boxplot(filtr$Age ~ filtr$Squad, main = "Player age chart", xlab = "Drużyna", ylab = "Age", las = 2, col=c("#00db74")) 
+boxplot(filtr$Age ~ filtr$Squad, main = "Player age chart", xlab = "Team", ylab = "Age", las = 2, col=c("#00db74")) 
 ```
 
 In the box plot @fig-age, we see the average age of Big Six team players over the last 6 years. Arsenal boasts the youngest squad, while Manchester City, which relies on experience, has the oldest. In addition, we can infer that Manchester City and Tottenham mostly rely on the same players as their chart is the “least stretched”. On the other hand, a lot of different players have passed through Arsenal as the data from the last 5 years are the most divergent.
 
 ```{r}
 #| label: fig-contacts
-#| fig-cap: Konatkty z piłką w różnych częściach boiska
+#| fig-cap: Conatacts with the ball in different parts of the pitch
 
 dotkniecia <-  dane  %>% group_by(Squad) %>% dplyr::select(Squad, Touches.def.3rd, Touches.mid.3rd, Touches.att.3rd) %>% summarise( Touches.def.3rd = sum(Touches.def.3rd), Touches.mid.3rd = sum(Touches.mid.3rd), Touches.att.3rd = sum(Touches.att.3rd)) %>% filter(Squad %in% c("Manchester Utd", "Arsenal", "Manchester City", "Chelsea", "Liverpool", "Tottenham"))
 
@@ -591,11 +590,11 @@ rownames(dane_ak2) <- dane_ak2$Squad
 dane_ak2 <- dane_ak2 %>% dplyr::select(-Squad) %>% scale() %>% as.data.frame()
 ```
 
-Podczas analizy modelu PCA mogliśmy zauważyć już pewne różnice pomiędzy wielką szóstką a resztą zestawienia. Przyjrzyjmy się teraz temu dokładniej.
+When analysing the PCA model, we could already see some differences between the big six and the rest of the list. Let us now look at this in more detail.
 
 ### Hopkins statistic
 
-First, we need to check if our set has a tendency to cluster, to investigate this we will use the Hopkins statistic.
+First and foremost, we need to check if our set has a tendency to cluster, to investigate this we will use the Hopkins statistic.
 
 ```{r}
 library(clustertend)
@@ -829,5 +828,3 @@ wyniki %>% kable %>% kable_material(c("striped", "hover")) %>% row_spec(c(1,2,6,
 -   The style of play that distinguishes the best teams can be summarized as short passes mainly on the opponent’s half, high pressing i.e. taking the ball still on the opponent’s half, not waiting for the development of the action. Better teams also stand out in terms of performing set pieces.
 
 -   You can clearly observe the distinctness of Big Six against the rest of the line-up, but we can suspect that over time this difference is blurring looking at the results of these teams in the current season and our predictive model.
-
-
